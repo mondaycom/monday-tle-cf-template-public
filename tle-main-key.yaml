@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Multi-region KMS key with IAM role and access policy'
+
+Parameters:
+  KMSAlias:
+    Type: String
+    Description: 'Alias name for the KMS key'
+    Default: 'monday-tle-main-key'
+  
+  RoleName:
+    Type: String
+    Description: 'Name for the IAM role'
+    Default: 'monday-tle-main-key-role'
+  
+  PolicyName:
+    Type: String
+    Description: 'Name for the IAM policy'
+    Default: 'monday-tle-main-key-policy'
+  
+  MondayAWSPrincipalArn:
+    Type: String
+    Description: 'ARN of the AWS principal (e.g., service, user, or role) that can assume this role'
+    AllowedPattern: '^arn:(aws|aws-cn|aws-us-gov):(iam|sts)::[0-9]{12}:(role|user|root|assumed-role)/.*'
+  
+  EnableKeyRotation:
+    Type: Boolean
+    Description: 'Enable automatic key rotation for the KMS key'
+    Default: false
+  
+Resources:
+  # Multi-region KMS Key
+  MainKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'Multi-region KMS key for Monday TLE'
+      EnableKeyRotation: !Ref EnableKeyRotation
+      MultiRegion: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+  
+  # KMS Key Alias
+  KMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${KMSAlias}'
+      TargetKeyId: !Ref MainKMSKey
+  
+  # IAM Role with trust relationship
+  IAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref MondayAWSPrincipalArn
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns: []
+      Policies:
+        - PolicyName: !Ref PolicyName
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                  - 'kms:Encrypt'
+                  - 'kms:DescribeKey'
+                Resource: !Sub 'arn:${AWS::Partition}:kms:*:${AWS::AccountId}:key/${MainKMSKey.KeyId}'
+
+Outputs:
+  MainKMSKeyArn:
+    Description: 'The Amazon Resource Name (ARN) of the main KMS key'
+    Value: !GetAtt MainKMSKey.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-MainKMSKeyArn'
+  
+  IAMRoleArn:
+    Description: 'The ARN of the IAM role'
+    Value: !GetAtt IAMRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-IAMRoleArn'

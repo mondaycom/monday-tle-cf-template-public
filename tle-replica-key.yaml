@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'KMS replica key for multi-region key'
+
+Parameters:
+  PrimaryKeyArn:
+    Type: String
+    Description: 'ARN of the primary multi-region KMS key'
+    AllowedPattern: '^arn:(aws|aws-cn|aws-us-gov):kms:[a-z0-9-]+:[0-9]{12}:key/[a-f0-9-]+$'
+  
+  ReplicaAlias:
+    Type: String
+    Description: 'Alias name for the replica KMS key'
+    Default: 'monday-tle-replica-key'
+
+Resources:
+  # KMS Replica Key
+  ReplicaKMSKey:
+    Type: AWS::KMS::ReplicaKey
+    Properties:
+      PrimaryKeyArn: !Ref PrimaryKeyArn
+      Description: 'Replica key for Monday TLE multi-region key'
+      Enabled: true
+
+  # KMS Replica Key Alias
+  ReplicaKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ReplicaAlias}'
+      TargetKeyId: !Ref ReplicaKMSKey
+
+Outputs:
+  ReplicaKeyId:
+    Description: 'The globally unique identifier for the replica KMS key'
+    Value: !Ref ReplicaKMSKey
+    Export:
+      Name: !Sub '${AWS::StackName}-ReplicaKeyId'
+  
+  ReplicaKeyArn:
+    Description: 'The Amazon Resource Name (ARN) of the replica KMS key'
+    Value: !GetAtt ReplicaKMSKey.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ReplicaKeyArn'
+  
+  ReplicaAliasName:
+    Description: 'The alias name of the replica KMS key'
+    Value: !Ref ReplicaKMSKeyAlias
+    Export:
+      Name: !Sub '${AWS::StackName}-ReplicaAliasName'
+
